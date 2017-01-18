@@ -10,6 +10,7 @@ from sklearn.ensemble import RandomForestClassifier
 from sklearn.preprocessing import OneHotEncoder, LabelEncoder
 
 
+#Load and preprocess the data, including dealing with missing observations and encoding categorical variables
 def load_data(filename, train=True):
     print "load_data...\n"
     df = pd.read_csv(filename)
@@ -81,7 +82,7 @@ def load_data(filename, train=True):
     df.drop(['id'], 1, inplace=True)
 
 
-
+    # print df.info()
     if train:
         #### responded
         le.fit(df['responded'])
@@ -106,12 +107,6 @@ def load_data(filename, train=True):
         y_c = y['responded']
         y_r = y['profit'].iloc[df_r_index]
 
-        print X_c_enc.info()
-        print X_r_enc.info()
-
-        print y_c.describe()
-        print y_r.describe()
-
         return X_c_enc, y_c, X_r_enc, y_r
     else:
         X_c = df
@@ -120,41 +115,7 @@ def load_data(filename, train=True):
         return X_c_enc
 
 
-
-
-    # if train:
-    #     #### responded
-    #     le.fit(df['responded'])
-    #     df['responded'] = le.transform(df['responded'])
-    #
-    #     #### profit....looks fine
-    #
-    #     #### dataset conditional on purchase
-    #     df_profit = df[df.profit.notnull()]
-    #     df_profit.drop(['responded'], 1, inplace=True)
-    #     y_r = df_profit.pop('profit')
-    #     X_r = df_profit
-    #     enc = OneHotEncoder(categorical_features = [1, 2, 3, 4, 5, 6, 7, 8, 9, 12, 19])
-    #     X_r_enc = enc.fit_transform(X_r).toarray()
-    #
-    #     #### unconditional dataset
-    #     df.drop(['profit'], 1, inplace=True)
-    #
-    #     y_c = df.pop('responded')
-    #     X_c = df
-    #
-    #     enc = OneHotEncoder(categorical_features = [1, 2, 3, 4, 5, 6, 7, 8, 9, 12, 19])
-    #     X_c_enc = enc.fit_transform(X_c).toarray()
-    #
-    #     return X_c_enc, y_c, X_r_enc, y_r
-    # else:
-    #     X_c = df
-    #     enc = OneHotEncoder(categorical_features = [1, 2, 3, 4, 5, 6, 7, 8, 9, 12, 19])
-    #     X_c_enc = enc.fit_transform(X_c).toarray()
-    #     return X_c_enc
-
-
-
+# The first thing I do is predict whether an individual will make a purchase
 def respond_classifier(X, y):
     print "\nrespond_classifier...\n"
     rf = RandomForestClassifier()
@@ -170,7 +131,7 @@ def respond_classifier(X, y):
     return gsCV_rf
 
 
-
+# Second, I predict, conditional on a purchase, the profit
 def profit_regress(X, y):
     print "\nprofit_regress...\n"
     rf = RandomForestRegressor()
@@ -186,29 +147,116 @@ def profit_regress(X, y):
     return gsCV_rf
 
 
-
+# This function predicts the profit for the testing data set, given the rule that an individual is not marketed if
 def profit_predict(X, c_obj, r_obj):
     print "\nprofit_predict...\n"
     df = pd.DataFrame(X)
+    H = pd.DataFrame(df.index, columns = ['index'])
 
     ind = np.where(c_obj.predict(X)==1)
 
-    offer = np.where(r_obj.predict(df.iloc[ind])>30, 1, 0)
+    poffer = r_obj.predict(df.iloc[ind])
+    offer = np.where(poffer>30, 1, 0)
+    # poffer = np.where(pred>30, pred-30, 0)
 
-    a = np.array([ind[0], offer]).T
+    a = np.array([ind[0], offer, poffer]).T
 
-    ind_offer = pd.DataFrame(a, columns = ['ind', 'offer'])
+    ind_offer = pd.DataFrame(a, columns = ['index', 'offer', 'profit'])
 
-    offer_indices = ind_offer[ind_offer.offer==1].ind.values
-
-    temp = pd.DataFrame(np.zeros(len(X_test)))
-
-    temp.iloc[offer_indices]=1
-
-    return temp.values
-
+    H = H.merge(ind_offer, how='left', on='index')
+    H['offer'].fillna(0, inplace=True)
+    H['profit'].fillna(0, inplace=True)
+    return H
 
 
+# Bar chart of the feature importances
+def feature_import(X_train, y_train, obj, title):
+    print 'feature_importance happening...'
+    rf = obj
+    rf.fit(X_train, y_train)
+    importances = rf.feature_importances_
+    std = np.std([tree.feature_importances_ for tree in rf.estimators_],
+                 axis=0)
+    indices = np.argsort(importances)[::-1]
+
+
+    # Print the feature ranking
+    print("Feature ranking:")
+
+    for f in range(X_train.shape[1]):
+        print("%d. feature %d (%f)" % (f + 1, indices[f], importances[indices[f]]))
+
+    # Plot the feature importances of the forest
+    plt.figure()
+    plt.title("Feature importances, {}".format(title))
+    plt.bar(range(15), importances[indices[:15]], color="r", yerr=std[indices[:15]], align="center")
+    plt.xticks(range(15), indices[:15])
+    plt.xlim([-1, 15])
+    # plt.show()
+    plt.savefig('feature_importance_{}.png'.format(title))
+
+
+
+# Make a plot of the predictions versus the actual for the training set
+def pred_plot(pred):
+    print "\nprofit_plot...\n"
+    X = pd.read_csv('/Users/brenthowe/datascience/data sets/uptake/training.csv')
+    actual = X.pop('profit')
+    actual.fillna(0, inplace=True)
+
+    l = len(actual)
+    print len(actual)
+    print len(pred)
+
+    fig = plt.figure(figsize=(12,6))
+    ax = fig.add_subplot(2,1,1)
+    ax.scatter(range(l), pred, color ='r', alpha=.6, label='Predicted')
+    ax.scatter(range(l), actual, color ='b', alpha=.6, label='Actual')
+    plt.title("Predictions versus Actual, Full Dataset")
+    plt.legend()
+    # plt.show()
+    # plt.savefig('pred_v_actual_full.png')
+
+    n = 100
+    ind = np.random.choice(l, n, replace=False)
+
+    ax = fig.add_subplot(2,1,2)
+    ax.scatter(range(n), pred[ind], color ='r', alpha=.6, label='Predicted')
+    ax.scatter(range(n), actual.values[ind], color ='b', alpha=.6, label='Actual')
+    plt.title("Predictions versus Actual, Random Subsample")
+    plt.legend()
+    # plt.show()
+    plt.savefig('pred_v_actual_randsub.png')
+
+
+# Calculate profit per marketing unit
+# I'm assuming that in this training dataset these observations represent the outcomes of a marketing campaign, where all of these individuals were contacted.
+def rel_pred(pred):
+    X = pd.read_csv('/Users/brenthowe/datascience/data sets/uptake/training.csv')
+    marketing_units = 8238
+    marketing_cost = marketing_units*30.
+    profit = X['profit']
+    profit.fillna(0, inplace=True)
+    profitt = profit.values
+
+    policy_profit = np.sum(profitt)
+    total_profit = policy_profit - marketing_cost
+    print "Profit per marketing unit, historical data: {}".format(total_profit/float(marketing_units))
+
+    print marketing_units
+    print marketing_cost
+    print policy_profit
+    print total_profit
+
+
+    marketing_units = np.sum(np.where(pred>30, 1, 0))
+    marketing_cost = marketing_units*30
+    policy_profit = np.sum(np.where(pred>30, pred, 0))
+    total_profit = policy_profit - marketing_cost
+    print "Profit per marketing unit, predicted: {}".format(total_profit/float(marketing_units))
+
+
+# write the predictions to file
 def to_file(offer_vec):
     holdout = pd.read_csv('/Users/brenthowe/datascience/data sets/uptake/testingCandidate.csv')
     holdout['offer'] = offer_vec
@@ -217,44 +265,29 @@ def to_file(offer_vec):
 
 
 if __name__=="__main__":
+    #load and process data
     X_c_train, y_c_train, X_r_train, y_r_train = load_data('/Users/brenthowe/datascience/data sets/uptake/training.csv')
+    # train two predictors...classifier for the purchase step and regressor for the profit predict step
     rf_c_obj = respond_classifier(X_c_train, y_c_train)
     rf_r_obj = profit_regress(X_r_train, y_r_train)
 
+    #load testing data
     X_test = load_data('/Users/brenthowe/datascience/data sets/uptake/testingCandidate.csv', train=False)
-    # print pd.DataFrame(X_test).info() # same number of variables...looking specifically at the encoded variables, it looks like the encoding was the same.
-    offer_vec = profit_predict(X_test, rf_c_obj, rf_r_obj)
+    # predict using testing data
+    offer_vec1 = profit_predict(X_test, rf_c_obj, rf_r_obj)
 
-    to_file(offer_vec)
+    # write predictions to file
+    to_file(offer_vec1['offer'].values)
 
+    offer_vec2 = profit_predict(X_c_train, rf_c_obj, rf_r_obj)
+    # make a plot of the predictions versus actual for training data
+    pred_plot(offer_vec2['profit'].values)
 
+    # feature importance from both prediction steps
+    rf = RandomForestClassifier(max_features=5, n_estimators=100)
+    feature_import(X_c_train, y_c_train, rf, 'Responded')
+    rf = RandomForestRegressor(max_features=25, n_estimators=100)
+    feature_import(X_c_train, y_c_train, rf, 'Profit')
 
-
-# Something that could inhibit generalization(?) to other datasets is the encoding step...wouldn't be able to use the model I train above necesssarily
-
-
-
-
-    #### How do I handle the days since contact variable? If I do a tree based approach, create a variable called
-        # maybe I'll just bin it.
-
-    #### I can see a potential correlation between the financial indicators and a purchase
-    #### what is the relationship between number of employees (I'm assuming this is at the insurance company) and a purchase?
-
-
-
-
-    #### responded...about 11% purchased in training set
-
-
-
-# presentation to non-technical client
-
-    # which variables seem to be the most significant in predicting whether they purchase and whether they are profitable?
-    # what type of increase in profit are we talking about here?
-        # compare the predicted profit with the historical
-
-
-        # diagram of predictions...what I predict and what the data actually are
-        # which features are most important in the two separate stages
-        # 
+    # calculation of effect on profit per marketing unit
+    rel_pred(offer_vec2['profit'].values)
