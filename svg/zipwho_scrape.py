@@ -12,8 +12,6 @@ def incomebyzipcode():
         time.sleep(np.random.randint(10))
         url = "https://www.incomebyzipcode.com/search/{}".format(zipcode)
         # url = "https://www.incomebyzipcode.com/search/{}".format(80921)
-        # url = "http://zipwho.com/?zip={}&mode=zip".format(zipcode)
-        # url = "http://zipwho.com/?zip=60626&mode=zip"
         req = requests.get(url)
         sc = req.status_code
         if sc==200:
@@ -29,7 +27,11 @@ def incomebyzipcode():
         with open('zipcode_info.txt', 'a') as f:
             f.write('{0}, {1}\n'.format(zipcode, median_income))
 
-# I'm still blacklisted when I try and scrape but not when I visit the website through Chrome
+
+
+
+# I got blacklisted at zipwho.com and didn't want to spend the time to get around it.
+# However, I thought including an education and race variable by zip code might be useful as well
 def zipwho():
     df = pd.read_csv('/Users/brenthowe/datascience/data sets/svg/train_test_.csv')
     with open('zipcode_info_complete.txt', 'a') as f:
@@ -67,5 +69,5 @@ def zipwho():
             f.write('{0}, {1}, {2}, {3}, {4}, {5}, {6}\n'.format(zipcode, median_income, college_degree, white, black, asian, hispanic))
 
 if __name__=="__main__":
-    # incomebyzipcode()
-    zipwho()
+    incomebyzipcode()
+    # zipwho()
