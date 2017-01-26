@@ -7,7 +7,9 @@ from sklearn.grid_search import GridSearchCV
 from sklearn.metrics.scorer import make_scorer
 from sklearn.neighbors import KNeighborsClassifier
 from sklearn.ensemble import RandomForestClassifier
+from sklearn.ensemble import GradientBoostingClassifier
 from sklearn.preprocessing import OneHotEncoder, LabelEncoder
+from sklearn.ensemble.partial_dependence import plot_partial_dependence, partial_dependence
 
 
 def rf_go(X_train, y_train):
@@ -62,10 +64,16 @@ def feature_importance(rf):
 
 
 if __name__=="__main__":
-    X_train, y_train, X_test = data_clean.data_clean('/Users/brenthowe/datascience/data sets/svg/train_test_.csv', '/Users/brenthowe/datascience/data sets/svg/holdout_.csv') # preprocessing is done in the file named data_clean.py
-    rf_obj = rf_go(X_train, y_train)
-    holdout_predict(X_test, rf_obj)
+    X_train, y_train, X_test = data_clean.data_clean('/Users/brenthowe/datascience/miscellanies/svg/svg_data/train_test_.csv', '/Users/brenthowe/datascience/miscellanies/svg/svg_data/holdout_.csv') # preprocessing is done in the file named data_clean.py
+    # rf_obj = rf_go(X_train, y_train)
+    # holdout_predict(X_test, rf_obj)
+    #
+    # rf = RandomForestClassifier(n_estimators=25, max_features=55)
+    # rf.fit(X_train, y_train)
+    # feature_importance(rf)
 
-    rf = RandomForestClassifier(n_estimators=25, max_features=55)
-    rf.fit(X_train, y_train)
-    feature_importance(rf)
+    gb = GradientBoostingClassifier(learning_rate = .1)
+    gb.fit(X_train, y_train)
+    # roc_auc_score(y_train, gb.predict(X_))
+    plot_partial_dependence(gb, X_train, [265, 266])
+    plt.show()
